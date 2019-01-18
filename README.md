@@ -18,11 +18,11 @@ A vim-esque editor written in Rust and rendered in the terminal.
 - Editorconfig integration
 
 In addition, since the editor is built with Rust, it can easily leverage incredibly powerful tools like:
-- fd-find
-- skim
-- ripgrep
-- git2
-- tantivy
+- [fd-find](https://crates.io/crates/fd-find)
+- [skim](https://crates.io/crates/skim)
+- [ripgrep](https://crates.io/crates/ripgrep)
+- [git2](https://crates.io/crates/git2)
+- [tantivy](https://crates.io/crates/tantivy)
 
 and doesn't need to pollute command mode with language features, since it's all just rust (and SIGNIFICANTLY easier for me to implement). With luck, during plugin development, people will contribute more Rust language parsers and code intelligence to the OSS community. Win!
 
