@@ -5,17 +5,27 @@ struct IndexedString {
     source: String,
 }
 
-static carriage_return: u8 = 13; // '\r'
-static line_feed: u8 = 10; // '\n'
+static CARRIAGE_RETURN: u8 = 13; // '\r'
+static LINE_FEED: u8 = 10; // '\n'
 
 impl IndexedString {
-    fn index_linebreaks(&mut self) {
-        for (index, character) in self.source.bytes().enumerate() {
-            if character != line_feed {
+    fn find_linebreaks(source: &str, byte_offset: usize) -> Vec<usize> {
+        let mut linebreaks = vec![];
+
+        for (index, character) in source.bytes().enumerate() {
+            if character != LINE_FEED {
                 continue;
             }
 
-            self.linebreaks.insert(index);
+            linebreaks.push(index + byte_offset);
+        }
+
+        linebreaks
+    }
+
+    fn index_linebreaks(&mut self) {
+        for linebreak in IndexedString::find_linebreaks(&self.source[..], 0) {
+            self.linebreaks.insert(linebreak);
         }
     }
 
@@ -28,6 +38,16 @@ impl IndexedString {
         text.index_linebreaks();
 
         return text;
+    }
+
+    pub fn append(&mut self, text: &str) {
+        let bytes = IndexedString::find_linebreaks(text, self.source.len());
+
+        for byte_index in bytes {
+            self.linebreaks.insert(byte_index);
+        }
+
+        self.source += text;
     }
 }
 
@@ -104,5 +124,22 @@ mod tests {
 
         let expected_offset = elf_emoji.bytes().len();
         assert_eq!(get_first_linebreak(text), expected_offset);
+    }
+
+    #[test]
+    fn test_string_append() {
+        let mut text = IndexedString::from("hello");
+        text.append(" world");
+
+        assert_eq!(text.source, "hello world".to_owned());
+    }
+
+    #[test]
+    fn test_line_append() {
+        let mut text = IndexedString::from("first line");
+        text.append("\nsecond line");
+
+        assert_eq!(text.linebreaks.len(), 1);
+        assert_eq!(get_first_linebreak(text), 10);
     }
 }
