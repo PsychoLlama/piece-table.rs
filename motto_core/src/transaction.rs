@@ -1,4 +1,5 @@
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[allow(dead_code)]
 pub enum Operation {
     Insertion(usize, String),
     Deletion(usize, u32),
@@ -9,16 +10,19 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Transaction {
             operations: Vec::new(),
         }
     }
 
+    #[allow(dead_code)]
     pub fn from(operations: Vec<Operation>) -> Self {
         Transaction { operations }
     }
 
+    #[allow(dead_code)]
     pub fn append_operation(&mut self, op: Operation) {
         self.operations.push(op);
     }

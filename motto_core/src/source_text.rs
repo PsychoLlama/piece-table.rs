@@ -1,43 +1,29 @@
-use super::transaction::{Operation, Transaction};
+use super::indexed_string::IndexedString;
 
+#[allow(dead_code)]
 pub struct SourceText {
-    text: String,
+    text: IndexedString,
 }
 
 impl SourceText {
-    fn new() -> SourceText {
+    #[allow(dead_code)]
+    pub fn new() -> SourceText {
         SourceText {
-            text: String::new(),
+            text: IndexedString::new(),
         }
     }
 
-    fn from(text: &str) -> SourceText {
+    #[allow(dead_code)]
+    pub fn from(text: &str) -> SourceText {
         SourceText {
-            text: text.to_string(),
+            text: IndexedString::from(text),
         }
-    }
-
-    fn apply_transaction(&mut self, tsc: &Transaction) {
-        for operation in &tsc.operations {
-            match operation {
-                Operation::Insertion(byte_index, text) => self.insert(byte_index, text),
-                _ => {}
-            }
-        }
-    }
-
-    fn insert(&mut self, byte_index: &usize, text: &String) {
-        self.text.insert_str(*byte_index, text);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn insert(byte_index: usize, content: &str) -> Operation {
-        Operation::Insertion(byte_index, content.to_string())
-    }
 
     #[test]
     fn test_empty_text_construction() {
@@ -51,24 +37,6 @@ mod tests {
         let text = "Initial value";
         let st = SourceText::from(text);
 
-        assert_eq!(st.text, text);
-    }
-
-    #[test]
-    fn test_leading_insertion() {
-        let mut st = SourceText::new();
-        let tsc = Transaction::from(vec![insert(0, "Text")]);
-        st.apply_transaction(&tsc);
-
-        assert_eq!(st.text, "Text".to_string());
-    }
-
-    #[test]
-    fn test_append_insertion() {
-        let mut st = SourceText::from("Hello");
-        let tsc = Transaction::from(vec![insert(5, " world!")]);
-        st.apply_transaction(&tsc);
-
-        assert_eq!(st.text, "Hello world!".to_string());
+        assert_eq!(st.text.len(), text.len());
     }
 }

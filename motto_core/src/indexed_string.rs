@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 
-struct IndexedString {
+pub struct IndexedString {
     linebreaks: BTreeSet<usize>,
     source: String,
 }
 
+#[allow(dead_code)]
 static CARRIAGE_RETURN: u8 = 13; // '\r'
 static LINE_FEED: u8 = 10; // '\n'
 
@@ -29,6 +30,15 @@ impl IndexedString {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        IndexedString {
+            linebreaks: BTreeSet::new(),
+            source: String::new(),
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn from(source: &str) -> Self {
         let mut text = IndexedString {
             linebreaks: BTreeSet::new(),
@@ -40,6 +50,7 @@ impl IndexedString {
         return text;
     }
 
+    #[allow(dead_code)]
     pub fn append(&mut self, text: &str) {
         let bytes = IndexedString::find_linebreaks(text, self.source.len());
 
@@ -48,6 +59,11 @@ impl IndexedString {
         }
 
         self.source += text;
+    }
+
+    #[allow(dead_code)]
+    pub fn len(&self) -> usize {
+        self.source.len()
     }
 }
 
@@ -70,6 +86,13 @@ mod tests {
 
     #[test]
     fn test_construction() {
+        let text = IndexedString::new();
+
+        assert_eq!(text.source.len(), 0);
+    }
+
+    #[test]
+    fn test_populated_construction() {
         let text = IndexedString::from("slice");
 
         assert_eq!(text.source, "slice".to_owned());
@@ -141,5 +164,12 @@ mod tests {
 
         assert_eq!(text.linebreaks.len(), 1);
         assert_eq!(get_first_linebreak(text), 10);
+    }
+
+    #[test]
+    fn test_line_length() {
+        let text = IndexedString::from("value");
+
+        assert_eq!(text.len(), text.source.len());
     }
 }
