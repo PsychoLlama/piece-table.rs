@@ -80,14 +80,9 @@ impl SourceText {
         None
     }
 
-    fn apply_insert(&mut self, indices: (usize, usize), fragment: Fragment) {
+    fn split_fragment(&mut self, indices: (usize, usize), fragment: Fragment) {
         let (fragment_index, fragment_offset) = indices;
         let target_fragment = &self.fragments[fragment_index];
-
-        // Append operation. No split necessary.
-        if target_fragment.byte_length == fragment_offset {
-            return self.fragments.push(fragment);
-        }
 
         let new_fragments = vec![
             Fragment {
@@ -106,6 +101,23 @@ impl SourceText {
         self.fragments
             .splice(fragment_index..fragment_index + 1, new_fragments)
             .for_each(drop);
+    }
+
+    fn apply_insert(&mut self, indices: (usize, usize), fragment: Fragment) {
+        let (fragment_index, fragment_offset) = indices;
+        let target_fragment = &self.fragments[fragment_index];
+
+        // Prepend operation.
+        if target_fragment.byte_offset == fragment_offset {
+            return self.fragments.insert(0, fragment);
+        }
+
+        // Append operation.
+        if target_fragment.byte_length == fragment_offset {
+            return self.fragments.push(fragment);
+        }
+
+        self.split_fragment(indices, fragment);
     }
 
     #[allow(dead_code)]
@@ -200,5 +212,20 @@ mod tests {
         assert_eq!(get_fragment(&text, 2).byte_offset, 2);
         assert_eq!(get_fragment(&text, 2).byte_length, 1);
         assert_eq!(get_fragment(&text, 2).is_new, false);
+    }
+
+    #[test]
+    fn test_prepending_insert() {
+        let mut text = SourceText::from("world");
+        text.insert(0, "hello ");
+
+        assert_eq!(text.fragments.len(), 2);
+        assert_eq!(get_fragment(&text, 0).is_new, true);
+        assert_eq!(get_fragment(&text, 0).byte_offset, 0);
+        assert_eq!(get_fragment(&text, 0).byte_length, 6);
+
+        assert_eq!(get_fragment(&text, 1).is_new, false);
+        assert_eq!(get_fragment(&text, 1).byte_offset, 0);
+        assert_eq!(get_fragment(&text, 1).byte_length, 5);
     }
 }
