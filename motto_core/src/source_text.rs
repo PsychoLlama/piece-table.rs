@@ -1,4 +1,5 @@
 use super::indexed_string::IndexedString;
+use std::fmt;
 
 #[derive(Debug)]
 struct Fragment {
@@ -92,9 +93,9 @@ impl SourceText {
             },
             fragment,
             Fragment {
-                is_new: target_fragment.is_new,
                 byte_offset: target_fragment.byte_offset + fragment_offset,
                 byte_length: target_fragment.byte_length - fragment_offset,
+                is_new: target_fragment.is_new,
             },
         ];
 
@@ -129,6 +130,32 @@ impl SourceText {
         };
 
         self.apply_insert(indices, inserted_fragment);
+    }
+}
+
+impl fmt::Display for SourceText {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let string_bytes = self
+            .fragments
+            .iter()
+            .fold(0, |sum, frag| sum + frag.byte_length);
+
+        let mut result = String::with_capacity(string_bytes);
+        let insertions = self.insertions.to_string();
+        let original = self.source.to_string();
+
+        for fragment in &self.fragments {
+            let source = match fragment.is_new {
+                true => &insertions,
+                false => &original,
+            };
+
+            let ending_byte = fragment.byte_offset + fragment.byte_length;
+            let slice = &source[fragment.byte_offset..ending_byte];
+            result.push_str(&slice);
+        }
+
+        write!(f, "{}", result)
     }
 }
 
@@ -227,5 +254,13 @@ mod tests {
         assert_eq!(get_fragment(&text, 1).is_new, false);
         assert_eq!(get_fragment(&text, 1).byte_offset, 0);
         assert_eq!(get_fragment(&text, 1).byte_length, 5);
+    }
+
+    #[test]
+    fn test_derive_source() {
+        let mut text = SourceText::from("hello world");
+        text.insert(6, "weird ");
+
+        assert_eq!(text.to_string(), "hello weird world");
     }
 }
