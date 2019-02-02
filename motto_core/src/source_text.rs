@@ -47,6 +47,77 @@ impl SourceText {
             source,
         }
     }
+
+    fn make_insert_fragment(&mut self, insertion: &str) -> Fragment {
+        let fragment = Fragment {
+            byte_offset: self.insertions.len(),
+            byte_length: insertion.len(),
+            is_new: true,
+        };
+
+        self.insertions.append(insertion);
+
+        return fragment;
+    }
+
+    // Find the fragment index and relative fragment byte offset. Do this by
+    // iterating over the fragments, keeping track of their byte length, then
+    // returning information about the first fragment that fits in the
+    // byte_offset range.
+    fn find_insertion_target(&self, byte_offset: usize) -> Option<(usize, usize)> {
+        let mut bytes_already_searched = 0;
+
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            let relative_offset = byte_offset - bytes_already_searched;
+            bytes_already_searched += fragment.byte_length;
+
+            // Is this the insertion?
+            if relative_offset <= fragment.byte_length {
+                return Some((index, relative_offset));
+            }
+        }
+
+        None
+    }
+
+    fn apply_insert(&mut self, indices: (usize, usize), fragment: Fragment) {
+        let (fragment_index, fragment_offset) = indices;
+        let target_fragment = &self.fragments[fragment_index];
+
+        // Append operation. No split necessary.
+        if target_fragment.byte_length == fragment_offset {
+            return self.fragments.push(fragment);
+        }
+
+        let new_fragments = vec![
+            Fragment {
+                byte_offset: target_fragment.byte_offset,
+                is_new: target_fragment.is_new,
+                byte_length: fragment_offset,
+            },
+            fragment,
+            Fragment {
+                is_new: target_fragment.is_new,
+                byte_offset: target_fragment.byte_offset + fragment_offset,
+                byte_length: target_fragment.byte_length - fragment_offset,
+            },
+        ];
+
+        self.fragments
+            .splice(fragment_index..fragment_index + 1, new_fragments)
+            .for_each(drop);
+    }
+
+    #[allow(dead_code)]
+    pub fn insert(&mut self, byte_offset: usize, text: &str) {
+        let inserted_fragment = self.make_insert_fragment(text);
+        let indices = match self.find_insertion_target(byte_offset) {
+            Some(indices) => indices,
+            None => return,
+        };
+
+        self.apply_insert(indices, inserted_fragment);
+    }
 }
 
 #[cfg(test)]
@@ -96,5 +167,38 @@ mod tests {
         assert_eq!(fragment.byte_offset, 0);
         assert_eq!(fragment.byte_length, 0);
         assert_eq!(fragment.is_new, false);
+    }
+
+    #[test]
+    fn test_appending_insert() {
+        let mut text = SourceText::from("a b");
+        text.insert(3, " c");
+
+        assert_eq!(text.insertions.to_string(), " c");
+        assert_eq!(text.fragments.len(), 2);
+        assert_eq!(get_fragment(&text, 0).byte_length, 3);
+        assert_eq!(get_fragment(&text, 1).byte_length, 2);
+        assert_eq!(get_fragment(&text, 1).byte_offset, 0);
+        assert_eq!(get_fragment(&text, 1).is_new, true);
+    }
+
+    #[test]
+    fn test_middle_insert() {
+        let mut text = SourceText::from("a c");
+        text.insert(2, "b ");
+
+        assert_eq!(text.fragments.len(), 3);
+        assert_eq!(text.insertions.len(), 2);
+        assert_eq!(get_fragment(&text, 0).byte_offset, 0);
+        assert_eq!(get_fragment(&text, 0).byte_length, 2);
+        assert_eq!(get_fragment(&text, 0).is_new, false);
+
+        assert_eq!(get_fragment(&text, 1).byte_offset, 0);
+        assert_eq!(get_fragment(&text, 1).byte_length, 2);
+        assert_eq!(get_fragment(&text, 1).is_new, true);
+
+        assert_eq!(get_fragment(&text, 2).byte_offset, 2);
+        assert_eq!(get_fragment(&text, 2).byte_length, 1);
+        assert_eq!(get_fragment(&text, 2).is_new, false);
     }
 }

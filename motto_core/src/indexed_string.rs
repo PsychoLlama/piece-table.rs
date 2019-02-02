@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt;
 
 pub struct IndexedString {
     linebreaks: BTreeSet<usize>,
@@ -64,6 +65,12 @@ impl IndexedString {
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.source.len()
+    }
+}
+
+impl fmt::Display for IndexedString {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.source)
     }
 }
 
@@ -171,5 +178,12 @@ mod tests {
         let text = IndexedString::from("value");
 
         assert_eq!(text.len(), text.source.len());
+    }
+
+    #[test]
+    fn test_to_string() {
+        let text = IndexedString::from("value");
+
+        assert_eq!(text.to_string(), "value".to_owned());
     }
 }
