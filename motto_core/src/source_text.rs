@@ -1,11 +1,43 @@
 use super::indexed_string::IndexedString;
+use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
 struct Fragment {
+    lines: HashMap<usize, usize>,
     byte_offset: usize,
     byte_length: usize,
     is_new: bool,
+}
+
+impl Fragment {
+    fn new(is_new: bool, byte_offset: usize, byte_length: usize, source: &IndexedString) -> Self {
+        let ending_offset = byte_offset + byte_length;
+        let lines = source.select_linebreaks(byte_offset, ending_offset);
+
+        Fragment {
+            byte_length,
+            byte_offset,
+            is_new,
+            lines,
+        }
+    }
+
+    pub fn of_insertion(offset: usize, length: usize, source: &IndexedString) -> Self {
+        return Fragment::new(true, offset, length, source);
+    }
+
+    pub fn of_source(offset: usize, length: usize, source: &IndexedString) -> Self {
+        return Fragment::new(false, offset, length, source);
+    }
+
+    pub fn to_string(&self, text: &SourceText) -> String {
+        let source = text.get_source_text(self.is_new);
+        let start_byte = self.byte_offset;
+        let end_byte = start_byte + self.byte_length;
+
+        return source[start_byte..end_byte].to_owned();
+    }
 }
 
 #[allow(dead_code)]
@@ -18,11 +50,7 @@ pub struct SourceText {
 impl SourceText {
     // Create the initial source fragment. Spans the whole string.
     fn create_source_fragment(source: &IndexedString) -> Fragment {
-        Fragment {
-            byte_length: source.len(),
-            byte_offset: 0,
-            is_new: false,
-        }
+        Fragment::of_source(0, source.len(), &source)
     }
 
     #[allow(dead_code)]
@@ -50,13 +78,12 @@ impl SourceText {
     }
 
     fn make_insert_fragment(&mut self, insertion: &str) -> Fragment {
-        let fragment = Fragment {
-            byte_offset: self.insertions.len(),
-            byte_length: insertion.len(),
-            is_new: true,
-        };
+        let offset = self.insertions.len();
+        let length = insertion.len();
 
         self.insertions.append(insertion);
+
+        let fragment = Fragment::of_insertion(offset, length, &self.insertions);
 
         return fragment;
     }
@@ -90,12 +117,14 @@ impl SourceText {
                 byte_offset: target_fragment.byte_offset,
                 is_new: target_fragment.is_new,
                 byte_length: fragment_offset,
+                lines: HashMap::new(),
             },
             fragment,
             Fragment {
                 byte_offset: target_fragment.byte_offset + fragment_offset,
                 byte_length: target_fragment.byte_length - fragment_offset,
                 is_new: target_fragment.is_new,
+                lines: HashMap::new(),
             },
         ];
 
@@ -121,6 +150,15 @@ impl SourceText {
         self.split_fragment(indices, fragment);
     }
 
+    fn get_source_text(&self, is_new: bool) -> String {
+        let source = match is_new {
+            true => &self.insertions,
+            false => &self.source,
+        };
+
+        return source.to_string();
+    }
+
     #[allow(dead_code)]
     pub fn insert(&mut self, byte_offset: usize, text: &str) {
         let inserted_fragment = self.make_insert_fragment(text);
@@ -130,6 +168,30 @@ impl SourceText {
         };
 
         self.apply_insert(indices, inserted_fragment);
+    }
+
+    #[allow(dead_code)]
+    pub fn get_line(&self, line_number: usize) -> Option<String> {
+        let mut searched_lines = 0;
+
+        for fragment in &self.fragments {
+            let fragment_lines = fragment.lines.len();
+
+            if line_number > searched_lines {
+                searched_lines += fragment_lines;
+                continue;
+            }
+
+            let relative_line_number = line_number - searched_lines;
+            let starting_byte = fragment.lines.get(&relative_line_number).unwrap();
+            let ending_byte = fragment.lines.get(&(relative_line_number + 1)).unwrap();
+            let mut result = String::with_capacity(ending_byte - starting_byte);
+            let source = self.get_source_text(fragment.is_new);
+            result.push_str(&source[starting_byte.clone()..ending_byte.clone()]);
+            return Some(result);
+        }
+
+        None
     }
 }
 
@@ -141,18 +203,9 @@ impl fmt::Display for SourceText {
             .fold(0, |sum, frag| sum + frag.byte_length);
 
         let mut result = String::with_capacity(string_bytes);
-        let insertions = self.insertions.to_string();
-        let original = self.source.to_string();
 
         for fragment in &self.fragments {
-            let source = match fragment.is_new {
-                true => &insertions,
-                false => &original,
-            };
-
-            let ending_byte = fragment.byte_offset + fragment.byte_length;
-            let slice = &source[fragment.byte_offset..ending_byte];
-            result.push_str(&slice);
+            result.push_str(&fragment.to_string(&self));
         }
 
         write!(f, "{}", result)

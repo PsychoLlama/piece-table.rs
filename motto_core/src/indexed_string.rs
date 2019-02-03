@@ -1,5 +1,6 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt;
+use std::ops::Bound::Included;
 
 pub struct IndexedString {
     linebreaks: BTreeSet<usize>,
@@ -31,7 +32,6 @@ impl IndexedString {
         }
     }
 
-    #[allow(dead_code)]
     pub fn new() -> Self {
         IndexedString {
             linebreaks: BTreeSet::new(),
@@ -39,7 +39,6 @@ impl IndexedString {
         }
     }
 
-    #[allow(dead_code)]
     pub fn from(source: &str) -> Self {
         let mut text = IndexedString {
             linebreaks: BTreeSet::new(),
@@ -51,7 +50,6 @@ impl IndexedString {
         return text;
     }
 
-    #[allow(dead_code)]
     pub fn append(&mut self, text: &str) {
         let bytes = IndexedString::find_linebreaks(text, self.source.len());
 
@@ -62,9 +60,17 @@ impl IndexedString {
         self.source += text;
     }
 
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.source.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn select_linebreaks(&self, start: usize, end: usize) -> HashMap<usize, usize> {
+        self.linebreaks
+            .range((Included(start), Included(end)))
+            .enumerate()
+            .map(|(index, linebreak)| (index, linebreak.clone()))
+            .collect()
     }
 }
 
@@ -185,5 +191,15 @@ mod tests {
         let text = IndexedString::from("value");
 
         assert_eq!(text.to_string(), "value".to_owned());
+    }
+
+    #[test]
+    fn test_linebreak_indexing() {
+        let text = IndexedString::from("first\nsecond\nthird\nfourth\nfifth");
+        let linebreaks = text.select_linebreaks(7, 21);
+
+        assert_eq!(linebreaks.len(), 2);
+        assert_eq!(linebreaks.get(&0).unwrap(), &12);
+        assert_eq!(linebreaks.get(&1).unwrap(), &18);
     }
 }
