@@ -36,11 +36,24 @@ impl Fragment {
         return self.slice(&text, 0, self.byte_length);
     }
 
+    #[cfg(any(debug, test))]
+    fn check_slice_bounds(&self, start: &usize, end: &usize) {
+        if end > &self.byte_length {
+            panic!(
+                "fragment.slice(..) was out of range by {} byte(s)",
+                end - &self.byte_length
+            );
+        }
+    }
+
     // Get a smaller piece of the fragment's text.
     pub fn slice(&self, text: &SourceText, start: usize, end: usize) -> String {
         let source = text.get_source_text(self.is_new);
         let start_byte = self.byte_offset + start;
         let end_byte = self.byte_offset + end;
+
+        #[cfg(any(debug, test))]
+        self.check_slice_bounds(&start_byte, &end_byte);
 
         return source[start_byte..end_byte].to_owned();
     }
