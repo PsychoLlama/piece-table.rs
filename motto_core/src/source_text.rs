@@ -23,18 +23,24 @@ impl Fragment {
         }
     }
 
-    pub fn of_insertion(offset: usize, length: usize, source: &IndexedString) -> Self {
-        return Fragment::new(true, offset, length, source);
+    pub fn of_insertion(offset: usize, size: usize, text: &IndexedString) -> Self {
+        return Fragment::new(true, offset, size, text);
     }
 
-    pub fn of_source(offset: usize, length: usize, source: &IndexedString) -> Self {
-        return Fragment::new(false, offset, length, source);
+    pub fn of_original(offset: usize, size: usize, text: &IndexedString) -> Self {
+        return Fragment::new(false, offset, size, text);
     }
 
+    // Get the full text of the fragment.
     pub fn to_string(&self, text: &SourceText) -> String {
+        return self.slice(&text, 0, self.byte_length);
+    }
+
+    // Get a smaller piece of the fragment's text.
+    pub fn slice(&self, text: &SourceText, start: usize, end: usize) -> String {
         let source = text.get_source_text(self.is_new);
-        let start_byte = self.byte_offset;
-        let end_byte = start_byte + self.byte_length;
+        let start_byte = self.byte_offset + start;
+        let end_byte = self.byte_offset + end;
 
         return source[start_byte..end_byte].to_owned();
     }
@@ -50,7 +56,7 @@ pub struct SourceText {
 impl SourceText {
     // Create the initial source fragment. Spans the whole string.
     fn create_source_fragment(source: &IndexedString) -> Fragment {
-        Fragment::of_source(0, source.len(), &source)
+        Fragment::of_original(0, source.len(), &source)
     }
 
     #[allow(dead_code)]
