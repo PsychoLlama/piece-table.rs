@@ -37,8 +37,10 @@ impl Fragment {
     }
 
     #[cfg(any(debug, test))]
-    fn check_slice_bounds(&self, start: &usize, end: &usize) {
-        if end > &self.byte_length {
+    fn check_slice_bounds(&self, end: &usize) {
+        let max = self.byte_offset + self.byte_length;
+
+        if end > &max {
             panic!(
                 "fragment.slice(..) was out of range by {} byte(s)",
                 end - &self.byte_length
@@ -53,7 +55,7 @@ impl Fragment {
         let end_byte = self.byte_offset + end;
 
         #[cfg(any(debug, test))]
-        self.check_slice_bounds(&start_byte, &end_byte);
+        self.check_slice_bounds(&end_byte);
 
         return source[start_byte..end_byte].to_owned();
     }
