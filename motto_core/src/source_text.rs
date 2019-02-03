@@ -1,19 +1,18 @@
 use super::indexed_string::IndexedString;
-use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
 struct Fragment {
-    lines: HashMap<usize, usize>,
     byte_offset: usize,
     byte_length: usize,
+    lines: Vec<usize>,
     is_new: bool,
 }
 
 impl Fragment {
     fn new(is_new: bool, byte_offset: usize, byte_length: usize, source: &IndexedString) -> Self {
         let ending_offset = byte_offset + byte_length;
-        let lines = source.select_linebreaks(byte_offset, ending_offset);
+        let lines = source.select_relative_linebreaks(byte_offset, ending_offset);
 
         Fragment {
             byte_length,
@@ -138,14 +137,14 @@ impl SourceText {
                 byte_offset: target_fragment.byte_offset,
                 is_new: target_fragment.is_new,
                 byte_length: fragment_offset,
-                lines: HashMap::new(),
+                lines: Vec::new(),
             },
             fragment,
             Fragment {
                 byte_offset: target_fragment.byte_offset + fragment_offset,
                 byte_length: target_fragment.byte_length - fragment_offset,
                 is_new: target_fragment.is_new,
-                lines: HashMap::new(),
+                lines: Vec::new(),
             },
         ];
 
@@ -189,30 +188,6 @@ impl SourceText {
         };
 
         self.apply_insert(indices, inserted_fragment);
-    }
-
-    #[allow(dead_code)]
-    pub fn get_line(&self, line_number: usize) -> Option<String> {
-        let mut searched_lines = 0;
-
-        for fragment in &self.fragments {
-            let fragment_lines = fragment.lines.len();
-
-            if line_number > searched_lines {
-                searched_lines += fragment_lines;
-                continue;
-            }
-
-            let relative_line_number = line_number - searched_lines;
-            let starting_byte = fragment.lines.get(&relative_line_number).unwrap();
-            let ending_byte = fragment.lines.get(&(relative_line_number + 1)).unwrap();
-            let mut result = String::with_capacity(ending_byte - starting_byte);
-            let source = self.get_source_text(fragment.is_new);
-            result.push_str(&source[starting_byte.clone()..ending_byte.clone()]);
-            return Some(result);
-        }
-
-        None
     }
 }
 

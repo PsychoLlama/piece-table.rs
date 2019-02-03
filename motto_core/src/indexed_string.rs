@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Bound::Included;
 
@@ -65,11 +65,11 @@ impl IndexedString {
     }
 
     #[allow(dead_code)]
-    pub fn select_linebreaks(&self, start: usize, end: usize) -> HashMap<usize, usize> {
+    pub fn select_relative_linebreaks(&self, start: usize, end: usize) -> Vec<usize> {
         self.linebreaks
             .range((Included(start), Included(end)))
             .enumerate()
-            .map(|(index, linebreak)| (index, linebreak.clone()))
+            .map(|(_, linebreak)| (linebreak - start).clone())
             .collect()
     }
 }
@@ -196,10 +196,10 @@ mod tests {
     #[test]
     fn test_linebreak_indexing() {
         let text = IndexedString::from("first\nsecond\nthird\nfourth\nfifth");
-        let linebreaks = text.select_linebreaks(7, 21);
+        let linebreaks = text.select_relative_linebreaks(7, 21);
 
         assert_eq!(linebreaks.len(), 2);
-        assert_eq!(linebreaks.get(&0).unwrap(), &12);
-        assert_eq!(linebreaks.get(&1).unwrap(), &18);
+        assert_eq!(linebreaks[0], 5);
+        assert_eq!(linebreaks[1], 11);
     }
 }
