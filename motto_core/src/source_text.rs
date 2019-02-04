@@ -49,7 +49,7 @@ impl Fragment {
 
     // Get a smaller piece of the fragment's text.
     pub fn slice(&self, text: &SourceText, start: usize, end: usize) -> String {
-        let source = text.get_source_text(self.is_new);
+        let source = text.get_source_string(&self.is_new);
         let start_byte = self.byte_offset + start;
         let end_byte = self.byte_offset + end;
 
@@ -57,6 +57,11 @@ impl Fragment {
         self.check_slice_bounds(&end_byte);
 
         return source[start_byte..end_byte].to_owned();
+    }
+
+    pub fn resize(&self, text: &SourceText, start: usize, end: usize) -> Self {
+        let source = text.get_source(&self.is_new);
+        Fragment::new(self.is_new, start, end, &source)
     }
 }
 
@@ -133,19 +138,13 @@ impl SourceText {
         let target_fragment = &self.fragments[fragment_index];
 
         let new_fragments = vec![
-            Fragment {
-                byte_offset: target_fragment.byte_offset,
-                is_new: target_fragment.is_new,
-                byte_length: fragment_offset,
-                lines: Vec::new(),
-            },
+            target_fragment.resize(&self, target_fragment.byte_offset, fragment_offset),
             fragment,
-            Fragment {
-                byte_offset: target_fragment.byte_offset + fragment_offset,
-                byte_length: target_fragment.byte_length - fragment_offset,
-                is_new: target_fragment.is_new,
-                lines: Vec::new(),
-            },
+            target_fragment.resize(
+                &self,
+                target_fragment.byte_offset + fragment_offset,
+                target_fragment.byte_length - fragment_offset,
+            ),
         ];
 
         self.fragments
@@ -170,13 +169,15 @@ impl SourceText {
         self.split_fragment(indices, fragment);
     }
 
-    fn get_source_text(&self, is_new: bool) -> String {
-        let source = match is_new {
+    fn get_source(&self, is_new: &bool) -> &IndexedString {
+        match is_new {
             true => &self.insertions,
             false => &self.source,
-        };
+        }
+    }
 
-        return source.to_string();
+    fn get_source_string(&self, is_new: &bool) -> String {
+        self.get_source(is_new).to_string()
     }
 
     #[allow(dead_code)]
