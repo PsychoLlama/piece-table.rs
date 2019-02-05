@@ -130,3 +130,44 @@ struct SourceText {
   segments: Vec<Segment>,
 }
 ```
+
+## B-Trees revision
+I'm currently reworking the model to be more malleable. Here are the revised
+data structures.
+
+```rust
+// One of two piece table strings.
+enum Source {
+  Insertion,
+  Original,
+}
+
+struct Fragment {
+  // Byte offset from the source string.
+  string_offset: usize,
+  byte_length: usize,
+  source: Source,
+}
+
+enum Linebreak {
+  Windows,
+  Unix,
+  Mac,
+}
+
+struct IndexedString {
+  linebreaks: Vec<(usize, Linebreak),
+  source: String,
+}
+
+struct Document {
+  insertions: IndexedString,
+  original: IndexedString,
+
+  // Computed byte offset => Fragment
+  fragments: BTreeMap<usize, Fragment>,
+
+  // Computed line number => computed byte offset
+  lines: BTreeMap<usize, usize>,
+}
+```
