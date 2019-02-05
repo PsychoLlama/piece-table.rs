@@ -50,6 +50,7 @@ impl IndexedString {
         return text;
     }
 
+    #[allow(dead_code)]
     pub fn append(&mut self, text: &str) {
         let bytes = IndexedString::find_linebreaks(text, self.source.len());
 

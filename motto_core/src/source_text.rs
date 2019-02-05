@@ -1,66 +1,69 @@
 use super::indexed_string::IndexedString;
+use std::collections::BTreeMap;
+
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
+enum Source {
+    Insertion,
+    Original,
+}
 
 #[derive(Debug)]
 struct Fragment {
     byte_offset: usize,
     byte_length: usize,
-    lines: Vec<usize>,
-    is_new: bool,
-}
-
-impl Fragment {
-    fn new(is_new: bool, byte_offset: usize, byte_length: usize, source: &IndexedString) -> Self {
-        let ending_offset = byte_offset + byte_length;
-        let lines = source.select_relative_linebreaks(byte_offset, ending_offset);
-
-        Fragment {
-            byte_length,
-            byte_offset,
-            is_new,
-            lines,
-        }
-    }
-
-    pub fn of_original(offset: usize, size: usize, text: &IndexedString) -> Self {
-        return Fragment::new(false, offset, size, text);
-    }
+    source: Source,
 }
 
 #[allow(dead_code)]
 pub struct SourceText {
-    fragments: Vec<Fragment>,
+    fragments: BTreeMap<usize, Fragment>,
+    linebreaks: BTreeMap<usize, usize>,
     insertions: IndexedString,
-    source: IndexedString,
+    original: IndexedString,
+}
+
+impl Fragment {
+    fn new(source: Source, byte_offset: usize, byte_length: usize) -> Self {
+        Fragment {
+            byte_length,
+            byte_offset,
+            source,
+        }
+    }
+
+    pub fn from_original(text: &IndexedString) -> Self {
+        let size = text.len();
+
+        return Fragment::new(Source::Original, 0, size);
+    }
 }
 
 impl SourceText {
-    // Create the initial source fragment. Spans the whole string.
-    fn create_source_fragment(source: &IndexedString) -> Fragment {
-        Fragment::of_original(0, source.len(), &source)
+    fn create_fragment_map(source: &IndexedString) -> BTreeMap<usize, Fragment> {
+        let mut fragments = BTreeMap::new();
+        let initial_fragment = Fragment::from_original(&source);
+
+        fragments.insert(0, initial_fragment);
+
+        return fragments;
     }
 
     #[allow(dead_code)]
-    pub fn new() -> SourceText {
-        let source = IndexedString::new();
-        let fragment = SourceText::create_source_fragment(&source);
+    pub fn from(text: &str) -> Self {
+        let original = IndexedString::from(text);
 
         SourceText {
+            fragments: SourceText::create_fragment_map(&original),
             insertions: IndexedString::new(),
-            fragments: vec![fragment],
-            source,
+            linebreaks: BTreeMap::new(),
+            original,
         }
     }
 
     #[allow(dead_code)]
-    pub fn from(text: &str) -> SourceText {
-        let source = IndexedString::from(text);
-        let fragment = SourceText::create_source_fragment(&source);
-
-        SourceText {
-            insertions: IndexedString::new(),
-            fragments: vec![fragment],
-            source,
-        }
+    pub fn new() -> Self {
+        return SourceText::from("");
     }
 }
 
@@ -68,15 +71,24 @@ impl SourceText {
 mod tests {
     use super::*;
 
+    fn get_fragment_tuple(text: &SourceText, index: usize) -> (&usize, &Fragment) {
+        return text
+            .fragments
+            .iter()
+            .take(index + 1)
+            .last()
+            .expect(format!("No fragment at index {}", index).as_ref());
+    }
+
     fn get_fragment(text: &SourceText, index: usize) -> &Fragment {
-        &text.fragments[index]
+        return get_fragment_tuple(&text, index).1;
     }
 
     #[test]
     fn test_empty_text_construction() {
         let text = SourceText::new();
 
-        assert_eq!(text.source.len(), 0);
+        assert_eq!(text.original.len(), 0);
         assert_eq!(text.insertions.len(), 0);
     }
 
@@ -85,7 +97,7 @@ mod tests {
         let text = "Initial value";
         let st = SourceText::from(text);
 
-        assert_eq!(st.source.len(), text.len());
+        assert_eq!(st.original.len(), text.len());
         assert_eq!(st.insertions.len(), 0);
     }
 
@@ -97,8 +109,8 @@ mod tests {
 
         let fragment = get_fragment(&text, 0);
         assert_eq!(fragment.byte_offset, 0);
-        assert_eq!(fragment.byte_length, text.source.len());
-        assert_eq!(fragment.is_new, false);
+        assert_eq!(fragment.byte_length, text.original.len());
+        assert_eq!(fragment.source, Source::Original);
     }
 
     #[test]
@@ -110,6 +122,6 @@ mod tests {
         let fragment = get_fragment(&text, 0);
         assert_eq!(fragment.byte_offset, 0);
         assert_eq!(fragment.byte_length, 0);
-        assert_eq!(fragment.is_new, false);
+        assert_eq!(fragment.source, Source::Original);
     }
 }
