@@ -16,7 +16,7 @@ struct Fragment {
 }
 
 #[allow(dead_code)]
-pub struct SourceText {
+pub struct Document {
     fragments: BTreeMap<usize, Fragment>,
     linebreaks: BTreeMap<usize, usize>,
     insertions: IndexedString,
@@ -39,7 +39,7 @@ impl Fragment {
     }
 }
 
-impl SourceText {
+impl Document {
     fn create_fragment_map(source: &IndexedString) -> BTreeMap<usize, Fragment> {
         let mut fragments = BTreeMap::new();
         let initial_fragment = Fragment::from_original(&source);
@@ -53,8 +53,8 @@ impl SourceText {
     pub fn from(text: &str) -> Self {
         let original = IndexedString::from(text);
 
-        SourceText {
-            fragments: SourceText::create_fragment_map(&original),
+        Document {
+            fragments: Document::create_fragment_map(&original),
             insertions: IndexedString::new(),
             linebreaks: BTreeMap::new(),
             original,
@@ -63,7 +63,7 @@ impl SourceText {
 
     #[allow(dead_code)]
     pub fn new() -> Self {
-        return SourceText::from("");
+        return Document::from("");
     }
 }
 
@@ -71,7 +71,7 @@ impl SourceText {
 mod tests {
     use super::*;
 
-    fn get_fragment_tuple(text: &SourceText, index: usize) -> (&usize, &Fragment) {
+    fn get_fragment_tuple(text: &Document, index: usize) -> (&usize, &Fragment) {
         return text
             .fragments
             .iter()
@@ -80,13 +80,13 @@ mod tests {
             .expect(format!("No fragment at index {}", index).as_ref());
     }
 
-    fn get_fragment(text: &SourceText, index: usize) -> &Fragment {
+    fn get_fragment(text: &Document, index: usize) -> &Fragment {
         return get_fragment_tuple(&text, index).1;
     }
 
     #[test]
     fn test_empty_text_construction() {
-        let text = SourceText::new();
+        let text = Document::new();
 
         assert_eq!(text.original.len(), 0);
         assert_eq!(text.insertions.len(), 0);
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn test_filled_construction() {
         let text = "Initial value";
-        let st = SourceText::from(text);
+        let st = Document::from(text);
 
         assert_eq!(st.original.len(), text.len());
         assert_eq!(st.insertions.len(), 0);
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_simple_initial_fragment_list() {
-        let text = SourceText::from("value");
+        let text = Document::from("value");
 
         assert_eq!(text.fragments.len(), 1);
 
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_simple_empty_fragment_list() {
-        let text = SourceText::new();
+        let text = Document::new();
 
         assert_eq!(text.fragments.len(), 1);
 
