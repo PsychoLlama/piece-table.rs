@@ -104,6 +104,11 @@ impl Document {
         return self.fragments.range(start_offset..=&range.end).collect();
     }
 
+    // Handles 4 cases:
+    // 1. `fr>ag` Deletion ends on fragment
+    // 2. `fr<ag` Deletion begins on fragment
+    // 3. `f<ra>g` Deletion exists in fragment
+    // 4. `<prev|frag|next>` Deletion covers fragment
     fn get_operation_for_fragment(&self, ranges: DeletionRange) -> FragmentUpdate {
         // Deletion covers the entire fragment.
         if ranges.deletion.start <= ranges.fragment.start
@@ -116,23 +121,41 @@ impl Document {
             };
         }
 
-        // TODO: Deletion exists entirely within fragment.
+        // Deletion exists entirely within fragment.
+        if ranges.deletion.start > ranges.fragment.start
+            && ranges.deletion.end < ranges.fragment.end
+        {
+            let Range { start, end } = ranges.deletion;
 
-        // Fragment intersects with deletion range.
+            return FragmentUpdate {
+                operation: FragmentOperation::Split(start, end),
+                move_to: ranges.fragment.start,
+                key: ranges.fragment.start,
+            };
+        }
+
+        // Deletion partially intersects with fragment.
         let mut trim_start = 0;
         let mut trim_end = 0;
 
-        // If deletion starts into the fragment, trim from the end.
-        if ranges.deletion.start > ranges.fragment.start
-            && ranges.deletion.start < ranges.fragment.end
-        {
-            trim_end = ranges.fragment.end - ranges.deletion.start;
+        let Range {
+            start: delete_start,
+            end: delete_end,
+        } = ranges.deletion;
+
+        let Range {
+            start: frag_start,
+            end: frag_end,
+        } = ranges.fragment;
+
+        // If deletion begins in the fragment, trim from the end.
+        if delete_start > frag_start && delete_start < frag_end {
+            trim_end = frag_end - delete_start;
         }
 
-        // If deletion ends into the fragment, trim from the start.
-        if ranges.deletion.end < ranges.fragment.end && ranges.deletion.end > ranges.fragment.start
-        {
-            trim_start = ranges.deletion.end - ranges.fragment.start;
+        // If deletion ends in the fragment, trim from the start.
+        if delete_end < frag_end && delete_end > frag_start {
+            trim_start = delete_end - frag_start;
         }
 
         return FragmentUpdate {
@@ -360,6 +383,22 @@ mod tests {
                     key: 13,
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn test_delete_middle_of_fragment() {
+        let mut text = Document::from("original");
+        text.insert(8, " with");
+        text.insert(13, " insertions");
+
+        assert_eq!(
+            text.get_delete_fragment_operations(15..20),
+            vec![FragmentUpdate {
+                operation: FragmentOperation::Split(15, 20),
+                move_to: 13,
+                key: 13,
+            }]
         );
     }
 }
