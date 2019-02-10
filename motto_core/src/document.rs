@@ -22,8 +22,9 @@ enum FragmentOperation {
     // Remove fragment text from the beginning, end, or both.
     // (trim_start_bytes, trim_end_bytes)
     Trim(usize, usize),
-    // Remove the fragment.
-    Delete,
+    // Remove the fragment. Metadata just for convenience.
+    // (deleted_byte_count)
+    Delete(usize),
     // No change.
     None,
 }
@@ -93,15 +94,15 @@ impl Document {
 
     // Find all fragments representing the given byte range.
     #[allow(dead_code)]
-    fn find_fragments_in_range(&self, range: &Range<usize>) -> Vec<Selector> {
+    fn find_affected_fragments(&self, start_byte: &usize) -> Vec<Selector> {
         let (start_offset, _) = self
             .fragments
-            .range(..=range.start)
+            .range(..=start_byte)
             .rev()
             .next()
             .expect("Empty fragment set");
 
-        return self.fragments.range(start_offset..=&range.end).collect();
+        return self.fragments.range(start_offset..).collect();
     }
 
     // Handles 4 cases:
@@ -114,8 +115,9 @@ impl Document {
         if ranges.deletion.start <= ranges.fragment.start
             && ranges.deletion.end >= ranges.fragment.end
         {
+            let Range { start, end } = ranges.fragment;
             return FragmentUpdate {
-                operation: FragmentOperation::Delete,
+                operation: FragmentOperation::Delete(end - start),
                 move_to: ranges.fragment.start,
                 key: ranges.fragment.start,
             };
@@ -158,17 +160,32 @@ impl Document {
             trim_start = delete_end - frag_start;
         }
 
+        let operation = match (trim_start, trim_end) {
+            (0, 0) => FragmentOperation::None,
+            (start, end) => FragmentOperation::Trim(start, end),
+        };
+
         return FragmentUpdate {
-            operation: FragmentOperation::Trim(trim_start, trim_end),
             move_to: ranges.fragment.start,
             key: ranges.fragment.start,
+            operation,
         };
+    }
+
+    fn calc_deleted_bytes(&self, op: &FragmentOperation) -> usize {
+        match op {
+            FragmentOperation::Split(start, end) => *end - *start,
+            FragmentOperation::Trim(start, end) => *start + *end,
+            FragmentOperation::Delete(bytes) => *bytes,
+            _ => 0,
+        }
     }
 
     #[allow(dead_code)]
     fn get_delete_fragment_operations(&self, deletion_range: Range<usize>) -> Vec<FragmentUpdate> {
-        let frags = self.find_fragments_in_range(&deletion_range);
+        let frags = self.find_affected_fragments(&deletion_range.start);
 
+        let mut deleted_bytes = 0;
         return frags
             .iter()
             .map(|(start_offset, frag)| {
@@ -179,6 +196,14 @@ impl Document {
                     fragment: **start_offset..frag_end_offset,
                     deletion: deletion_range.clone(),
                 })
+            })
+            .map(|mut update| {
+                update.move_to = update.key - deleted_bytes;
+
+                let operation = &update.operation;
+                deleted_bytes += self.calc_deleted_bytes(&operation);
+
+                return update;
             })
             .collect();
     }
@@ -301,18 +326,16 @@ mod tests {
     }
 
     #[test]
-    fn test_find_fragments_in_range() {
+    fn test_find_affected_fragments() {
         let mut text = Document::from("original");
         text.insert(8, " with");
         text.insert(13, " insertions");
 
-        assert_eq!(text.find_fragments_in_range(&(0..7)).len(), 1);
-        assert_eq!(text.find_fragments_in_range(&(0..8)).len(), 2);
-        assert_eq!(text.find_fragments_in_range(&(0..12)).len(), 2);
-        assert_eq!(text.find_fragments_in_range(&(0..13)).len(), 3);
-        assert_eq!(text.find_fragments_in_range(&(0..23)).len(), 3);
-        assert_eq!(text.find_fragments_in_range(&(8..23)).len(), 2);
-        assert_eq!(text.find_fragments_in_range(&(13..23)).len(), 1);
+        assert_eq!(text.find_affected_fragments(&0).len(), 3);
+        assert_eq!(text.find_affected_fragments(&1).len(), 3);
+        assert_eq!(text.find_affected_fragments(&7).len(), 3);
+        assert_eq!(text.find_affected_fragments(&8).len(), 2);
+        assert_eq!(text.find_affected_fragments(&13).len(), 1);
     }
 
     #[test]
@@ -356,7 +379,7 @@ mod tests {
         assert_eq!(
             text.get_delete_fragment_operations(13..24),
             vec![FragmentUpdate {
-                operation: FragmentOperation::Delete,
+                operation: FragmentOperation::Delete(11),
                 move_to: 13,
                 key: 13,
             }]
@@ -373,13 +396,13 @@ mod tests {
             text.get_delete_fragment_operations(8..32),
             vec![
                 FragmentUpdate {
-                    operation: FragmentOperation::Delete,
+                    operation: FragmentOperation::Delete(5),
                     move_to: 8,
                     key: 8,
                 },
                 FragmentUpdate {
-                    operation: FragmentOperation::Delete,
-                    move_to: 13,
+                    operation: FragmentOperation::Delete(11),
+                    move_to: 8,
                     key: 13,
                 }
             ]
@@ -399,6 +422,57 @@ mod tests {
                 move_to: 13,
                 key: 13,
             }]
+        );
+    }
+
+    #[test]
+    fn test_deletion_adjusts_later_elements() {
+        let mut text = Document::from("original");
+        text.insert(8, " with");
+        text.insert(13, " insertions");
+
+        assert_eq!(
+            text.get_delete_fragment_operations(10..13),
+            vec![
+                FragmentUpdate {
+                    operation: FragmentOperation::Trim(0, 3),
+                    move_to: 8,
+                    key: 8,
+                },
+                FragmentUpdate {
+                    operation: FragmentOperation::None,
+                    move_to: 10,
+                    key: 13,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_deletion_split_adjusts_later_elements() {
+        let mut text = Document::from("original");
+        text.insert(8, " with");
+        text.insert(13, " insertions");
+
+        assert_eq!(
+            text.get_delete_fragment_operations(1..3),
+            vec![
+                FragmentUpdate {
+                    operation: FragmentOperation::Split(1, 3),
+                    move_to: 0,
+                    key: 0,
+                },
+                FragmentUpdate {
+                    operation: FragmentOperation::None,
+                    move_to: 6,
+                    key: 8,
+                },
+                FragmentUpdate {
+                    operation: FragmentOperation::None,
+                    move_to: 11,
+                    key: 13,
+                },
+            ]
         );
     }
 }
