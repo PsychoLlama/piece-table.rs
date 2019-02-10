@@ -1,6 +1,6 @@
 use super::indexed_string::IndexedString;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[allow(dead_code)]
 pub enum Source {
     Insertion,
@@ -15,7 +15,7 @@ pub struct Fragment {
 }
 
 impl Fragment {
-    fn new(source: Source, byte_offset: usize, byte_length: usize) -> Self {
+    pub fn new(source: Source, byte_offset: usize, byte_length: usize) -> Self {
         Fragment {
             byte_length,
             byte_offset,
