@@ -46,6 +46,12 @@ impl Fragment {
 
         return source_text[self.byte_offset..end_byte].to_owned();
     }
+
+    #[allow(dead_code)]
+    pub fn resize(&mut self, offset: usize, length: usize) {
+        self.byte_offset = offset;
+        self.byte_length = length;
+    }
 }
 
 #[cfg(test)]
@@ -95,5 +101,14 @@ mod tests {
         let slice = frag.get_slice(&source);
 
         assert_eq!(slice, "rst s");
+    }
+
+    #[test]
+    fn test_resize() {
+        let mut frag = Fragment::of_original(2, 5);
+        frag.resize(3, 4);
+
+        assert_eq!(frag.byte_offset, 3);
+        assert_eq!(frag.byte_length, 4);
     }
 }
