@@ -1,7 +1,6 @@
 use super::indexed_string::IndexedString;
 
 #[derive(Debug, PartialEq, Clone)]
-#[allow(dead_code)]
 pub enum Source {
     Insertion,
     Original,
@@ -29,17 +28,10 @@ impl Fragment {
         return Fragment::new(Source::Original, 0, size);
     }
 
-    #[allow(dead_code)]
-    pub fn of_original(offset: usize, size: usize) -> Self {
-        return Fragment::new(Source::Original, offset, size);
-    }
-
-    #[allow(dead_code)]
     pub fn of_insertion(offset: usize, size: usize) -> Self {
         return Fragment::new(Source::Insertion, offset, size);
     }
 
-    #[allow(dead_code)]
     pub fn get_slice(&self, source: &IndexedString) -> String {
         let source_text = source.to_string();
         let end_byte = self.byte_offset + self.byte_length;
@@ -47,7 +39,6 @@ impl Fragment {
         return source_text[self.byte_offset..end_byte].to_owned();
     }
 
-    #[allow(dead_code)]
     pub fn resize(&mut self, offset: usize, length: usize) {
         self.byte_offset = offset;
         self.byte_length = length;
@@ -77,15 +68,6 @@ mod tests {
     }
 
     #[test]
-    fn test_original_constructor() {
-        let frag = Fragment::of_original(1, 5);
-
-        assert_eq!(frag.source, Source::Original);
-        assert_eq!(frag.byte_offset, 1);
-        assert_eq!(frag.byte_length, 5);
-    }
-
-    #[test]
     fn test_insertion_constructor() {
         let frag = Fragment::of_insertion(5, 10);
 
@@ -96,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_fragment_substring_slice() {
-        let frag = Fragment::of_original(2, 5);
+        let frag = Fragment::of_insertion(2, 5);
         let source = IndexedString::from("first second third");
         let slice = frag.get_slice(&source);
 
@@ -105,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_resize() {
-        let mut frag = Fragment::of_original(2, 5);
+        let mut frag = Fragment::of_insertion(2, 5);
         frag.resize(3, 4);
 
         assert_eq!(frag.byte_offset, 3);

@@ -10,11 +10,11 @@ struct DeletionRange {
     deletion: Range<usize>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 enum FragmentOperation {
     // Insert a fragment into another fragment.
     // (byte_offset_from_start, Fragment)
+    #[allow(dead_code)]
     Insert(usize, Fragment),
     // Split the fragment into two parts.
     // (split_at_byte, resume_at_byte)
@@ -251,7 +251,7 @@ impl Document {
 
     fn apply_changes(&mut self, changes: &Vec<FragmentUpdate>) -> Option<()> {
         for change in changes {
-            self.apply_change(&change);
+            self.apply_change(&change)?;
         }
 
         Some(())
