@@ -87,7 +87,11 @@ impl Document {
     pub fn insert(&mut self, byte_offset: usize, text: &str) {
         let frag = self.create_insertion_fragment(text);
         let changes = self.get_changes_for_insertion(byte_offset, frag);
-        self.apply_changes(&changes);
+
+        // Apply changes backwards to avoid overwriting fragments.
+        for change in changes.iter().rev() {
+            self.apply_change(change);
+        }
     }
 
     fn get_fragment_source(&self, fragment: &Fragment) -> &IndexedString {
@@ -226,7 +230,11 @@ impl Document {
             .enumerate()
             .map(|(idx, (key, _))| {
                 let (insertion_offset, operation) = match idx {
-                    0 => (0, FragmentOperation::Insert(start_byte, ins.clone())),
+                    0 => {
+                        let offset_from_start = start_byte - **key;
+                        let frag = FragmentOperation::Insert(offset_from_start, ins.clone());
+                        (0, frag)
+                    }
                     _ => (ins.byte_length, FragmentOperation::None),
                 };
 
@@ -239,63 +247,108 @@ impl Document {
             .collect();
     }
 
+    fn split_fragment(
+        &mut self,
+        change: &FragmentUpdate,
+        (stop, resume): (&usize, &usize),
+    ) -> Option<((usize, Fragment), (usize, Fragment))> {
+        let mut left = self.fragments.remove(&change.key)?;
+        let frag_offset_diff = resume - change.key;
+
+        let right_frag_byte_offset = left.byte_offset + frag_offset_diff;
+        let right_frag_byte_length = left.byte_length - frag_offset_diff;
+
+        let right = Fragment::new(
+            left.source.clone(),
+            right_frag_byte_offset,
+            right_frag_byte_length,
+        );
+
+        left.resize(left.byte_offset, stop - change.key);
+
+        return Some(((change.move_to, left), (*resume, right)));
+    }
+
+    fn trim_fragment(
+        &mut self,
+        change: &FragmentUpdate,
+        (start, end): (&usize, &usize),
+    ) -> Option<()> {
+        let mut frag = self.fragments.remove(&change.key)?;
+        let new_offset = frag.byte_offset + start;
+        let new_length = frag.byte_length - start - end;
+
+        frag.resize(new_offset, new_length);
+
+        self.fragments.insert(change.move_to, frag);
+        return Some(());
+    }
+
     // Danger: fragment mutation and resizing zone.
     // Remember not to confuse fragment offsets with derived offsets.
     fn apply_change(&mut self, change: &FragmentUpdate) -> Option<()> {
         match &change.operation {
             FragmentOperation::None => {}
             FragmentOperation::Delete(_) => {
-                self.fragments.remove(&change.key);
+                self.fragments.remove(&change.key)?;
             }
 
             FragmentOperation::Trim(start, end) => {
-                let mut frag = self.fragments.remove(&change.key)?;
-                let new_offset = frag.byte_offset + start;
-                let new_length = frag.byte_length - start - end;
-
-                frag.resize(new_offset, new_length);
-
-                self.fragments.insert(change.move_to, frag);
+                self.trim_fragment(change, (start, end))?;
             }
 
             FragmentOperation::Split(stop, resume) => {
-                let mut left = self.fragments.remove(&change.key)?;
-                let frag_offset_diff = resume - change.key;
+                let ((left_offset, left), (right_offset, right)) =
+                    self.split_fragment(&change, (stop, resume))?;
 
-                let right_frag_byte_offset = left.byte_offset + frag_offset_diff;
-                let right_frag_byte_length = left.byte_length - frag_offset_diff;
-
-                let right = Fragment::new(
-                    left.source.clone(),
-                    right_frag_byte_offset,
-                    right_frag_byte_length,
-                );
-
-                left.resize(left.byte_offset, stop - change.key);
-
-                self.fragments.insert(change.move_to, left);
-                self.fragments.insert(*resume, right);
+                self.fragments.insert(left_offset, left);
+                self.fragments.insert(right_offset, right);
             }
+
             FragmentOperation::Insert(at_byte, insertion) => {
-                self.fragments.insert(*at_byte, insertion.clone());
+                self.apply_insert(&change, (*at_byte, insertion.clone()));
             }
         }
 
         Some(())
     }
 
-    fn apply_changes(&mut self, changes: &Vec<FragmentUpdate>) -> Option<()> {
-        for change in changes {
-            self.apply_change(&change)?;
+    fn apply_insert(
+        &mut self,
+        change: &FragmentUpdate,
+        (at_byte, insertion): (usize, Fragment),
+    ) -> Option<()> {
+        let offset = change.key + at_byte;
+        let frag = insertion.clone();
+        let target_frag = &self.fragments[&change.key];
+
+        // Appending.
+        if offset >= change.key + target_frag.byte_length {
+            self.fragments.insert(offset, frag);
+            return Some(());
         }
 
-        Some(())
+        // Prepending.
+        if offset == change.key {
+            let target_frag = self.fragments.remove(&change.key)?;
+            let new_offset = offset + insertion.byte_length;
+            self.fragments.insert(new_offset, target_frag);
+            self.fragments.insert(offset, insertion);
+            return Some(());
+        }
+
+        // TODO: Middle insert.
+
+        return Some(());
     }
 
     #[allow(dead_code)]
     pub fn delete(&mut self, range: &Range<usize>) {
         let changes = self.get_changes_for_deletion(&range);
-        self.apply_changes(&changes);
+
+        for change in changes {
+            self.apply_change(&change);
+        }
     }
 }
 
@@ -674,5 +727,13 @@ mod tests {
 
         assert_eq!(text.to_string(), "original insert");
         assert_eq!(text.len(), 15);
+    }
+
+    #[test]
+    fn test_prepending_insert() {
+        let mut text = Document::from("text");
+        text.insert(0, "prepended ");
+
+        assert_eq!(text.to_string(), "prepended text");
     }
 }
