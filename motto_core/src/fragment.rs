@@ -6,7 +6,7 @@ pub enum Source {
     Original,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Fragment {
     pub byte_offset: usize,
     pub byte_length: usize,

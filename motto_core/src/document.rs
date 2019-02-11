@@ -73,16 +73,21 @@ impl Document {
 
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
-        return self.original.len();
+        let (last_offset, last_fragment) = self
+            .fragments
+            .iter()
+            .rev()
+            .next()
+            .expect("Somehow the buffer text doesn't have a fragment.");
+
+        return last_offset + last_fragment.byte_length;
     }
 
     #[allow(dead_code)]
     pub fn insert(&mut self, byte_offset: usize, text: &str) {
-        let insertion_offset = self.insertions.len();
-        self.insertions.append(text);
-
-        let frag = Fragment::of_insertion(insertion_offset, text.len());
-        self.fragments.insert(byte_offset, frag);
+        let frag = self.create_insertion_fragment(text);
+        let changes = self.get_changes_for_insertion(byte_offset, frag);
+        self.apply_changes(&changes);
     }
 
     fn get_fragment_source(&self, fragment: &Fragment) -> &IndexedString {
@@ -181,7 +186,6 @@ impl Document {
         }
     }
 
-    #[allow(dead_code)]
     fn get_changes_for_deletion(&self, deletion_range: &Range<usize>) -> Vec<FragmentUpdate> {
         let frags = self.find_affected_fragments(&deletion_range.start);
 
@@ -207,10 +211,39 @@ impl Document {
             .collect();
     }
 
+    fn create_insertion_fragment(&mut self, ins: &str) -> Fragment {
+        let offset = self.insertions.len();
+        self.insertions.append(ins);
+
+        return Fragment::of_insertion(offset, ins.len());
+    }
+
+    fn get_changes_for_insertion(&self, start_byte: usize, ins: Fragment) -> Vec<FragmentUpdate> {
+        let frags = self.find_affected_fragments(&start_byte);
+
+        return frags
+            .iter()
+            .enumerate()
+            .map(|(idx, (key, _))| {
+                let (insertion_offset, operation) = match idx {
+                    0 => (0, FragmentOperation::Insert(start_byte, ins.clone())),
+                    _ => (ins.byte_length, FragmentOperation::None),
+                };
+
+                return FragmentUpdate {
+                    move_to: insertion_offset + **key,
+                    key: **key,
+                    operation,
+                };
+            })
+            .collect();
+    }
+
     // Danger: fragment mutation and resizing zone.
     // Remember not to confuse fragment offsets with derived offsets.
     fn apply_change(&mut self, change: &FragmentUpdate) -> Option<()> {
-        match change.operation {
+        match &change.operation {
+            FragmentOperation::None => {}
             FragmentOperation::Delete(_) => {
                 self.fragments.remove(&change.key);
             }
@@ -241,9 +274,11 @@ impl Document {
                 left.resize(left.byte_offset, stop - change.key);
 
                 self.fragments.insert(change.move_to, left);
-                self.fragments.insert(resume, right);
+                self.fragments.insert(*resume, right);
             }
-            _ => {}
+            FragmentOperation::Insert(at_byte, insertion) => {
+                self.fragments.insert(*at_byte, insertion.clone());
+            }
         }
 
         Some(())
@@ -580,5 +615,64 @@ mod tests {
         text.delete(&(7..19));
 
         assert_eq!(text.to_string(), "originations");
+    }
+
+    #[test]
+    fn test_insertion_fragment_creation() {
+        let mut text = Document::new();
+
+        assert_eq!(text.insertions.len(), 0);
+        let insertion = text.create_insertion_fragment("content");
+        assert_eq!(text.insertions.len(), insertion.byte_length);
+    }
+
+    #[test]
+    fn test_appending_insert_fragment_operations() {
+        let mut text = Document::from("hello");
+        let insert = text.create_insertion_fragment(" world!");
+
+        assert_eq!(
+            text.get_changes_for_insertion(6, insert.clone()),
+            vec![FragmentUpdate {
+                operation: FragmentOperation::Insert(6, insert),
+                move_to: 0,
+                key: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_insertions_adjust_later_elements() {
+        let mut text = Document::new();
+        text.insert(0, "original ");
+        text.insert(9, "insertions");
+        let insert = text.create_insertion_fragment("with ");
+
+        assert_eq!(
+            text.get_changes_for_insertion(8, insert.clone()),
+            vec![
+                FragmentUpdate {
+                    operation: FragmentOperation::Insert(8, insert.clone()),
+                    move_to: 0,
+                    key: 0,
+                },
+                FragmentUpdate {
+                    operation: FragmentOperation::None,
+                    move_to: 9 + insert.byte_length,
+                    key: 9,
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn test_len_after_insertion_and_deletion() {
+        let mut text = Document::from("origin");
+        text.insert(8, " insertion");
+        text.insert(6, "al");
+        text.delete(&(15..18));
+
+        assert_eq!(text.to_string(), "original insert");
+        assert_eq!(text.len(), 15);
     }
 }
