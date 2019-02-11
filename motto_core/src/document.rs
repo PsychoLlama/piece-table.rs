@@ -305,8 +305,11 @@ impl Document {
                 self.fragments.insert(right_offset, right);
             }
 
-            FragmentOperation::Insert(at_byte, insertion) => {
-                self.apply_insert(&change, (*at_byte, insertion.clone()));
+            FragmentOperation::Insert(at_byte, fragment) => {
+                let offset = *at_byte;
+                let insertion = fragment.clone();
+
+                self.apply_insert(&change, (offset, insertion));
             }
         }
 
@@ -337,7 +340,21 @@ impl Document {
             return Some(());
         }
 
-        // TODO: Middle insert.
+        // Somewhere in the middle.
+        let split_change = FragmentUpdate {
+            operation: FragmentOperation::Split(offset, offset),
+            move_to: change.key,
+            key: change.key,
+        };
+
+        let ((left_offset, left), (right_offset, right)) =
+            self.split_fragment(&split_change, (&offset, &offset))?;
+
+        self.fragments.insert(left_offset, left);
+        self.fragments
+            .insert(right_offset + insertion.byte_length, right);
+
+        self.fragments.insert(offset, insertion);
 
         return Some(());
     }
@@ -735,5 +752,13 @@ mod tests {
         text.insert(0, "prepended ");
 
         assert_eq!(text.to_string(), "prepended text");
+    }
+
+    #[test]
+    fn test_insert_middle_of_fragment() {
+        let mut text = Document::from("text");
+        text.insert(2, "-INSERTED-");
+
+        assert_eq!(text.to_string(), "te-INSERTED-xt");
     }
 }
