@@ -1,6 +1,9 @@
-use super::fragment::{Fragment, Source};
-use super::indexed_string::IndexedString;
+use fragment::{Fragment, Source};
+use indexed_string::IndexedString;
 use std::{collections::BTreeMap, fmt, ops::Range};
+
+mod fragment;
+mod indexed_string;
 
 type Selector<'a> = (&'a usize, &'a Fragment);
 
@@ -14,7 +17,6 @@ struct DeletionRange {
 enum FragmentOperation {
     // Insert a fragment into another fragment.
     // (byte_offset_from_start, Fragment)
-    #[allow(dead_code)]
     Insert(usize, Fragment),
     // Split the fragment into two parts.
     // (split_at_byte, resume_at_byte)
@@ -54,7 +56,6 @@ impl Document {
         return fragments;
     }
 
-    #[allow(dead_code)]
     pub fn from(text: &str) -> Self {
         let original = IndexedString::from(text);
 
