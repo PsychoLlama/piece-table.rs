@@ -3,9 +3,15 @@ name = "motto"
 version = "0.1.0"
 authors = ["Jesse Gibson <JesseTheGibson@gmail.com>"]
 edition = "2018"
+description = "A modern vim-like text editor"
+repository = "https://github.com/PsychoLlama/motto"
+license-file = "./LICENSE.md"
+keywords = ["vim", "vi", "neovim", "nvim"]
 
 [dependencies]
 motto_core = { version = "*", path = "motto_core" }
+termion = "^1.5.1"
+clap = "^2.32.0"
 
 [workspace]
 members = [
