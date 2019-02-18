@@ -5,7 +5,6 @@ authors = ["Jesse Gibson <JesseTheGibson@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-termion = "^1.5.1"
 motto_core = { version = "*", path = "motto_core" }
 
 [workspace]
