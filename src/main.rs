@@ -4,6 +4,12 @@ extern crate motto_core;
 extern crate termion;
 
 use clap::{App, Arg, ArgMatches};
+use std::io::{self, Write};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
+use termion::{clear, cursor};
 
 // Generate a clap CLI config.
 fn get_app_config<'a, 'b>() -> App<'a, 'b> {
@@ -19,9 +25,32 @@ fn get_file_list<'a>(matches: &'a ArgMatches) -> Vec<&'a str> {
 }
 
 fn main() {
+    let stdin = io::stdin();
+    let stdout = io::stdout().into_raw_mode().unwrap();
+
     let app = get_app_config();
     let matches = app.get_matches();
-    let _files_to_edit = get_file_list(&matches);
+    let files_to_edit = get_file_list(&matches);
+
+    let mut screen = AlternateScreen::from(stdout);
+
+    write!(
+        screen,
+        "{}{}{:?}",
+        clear::All,
+        cursor::Goto(1, 1),
+        files_to_edit
+    )
+    .unwrap();
+
+    screen.flush().unwrap();
+
+    for character in stdin.keys() {
+        match character.unwrap() {
+            Key::Ctrl('c') => break,
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
