@@ -38,10 +38,8 @@ struct FragmentUpdate {
     key: usize,
 }
 
-#[allow(dead_code)]
 pub struct Document {
     fragments: BTreeMap<usize, Fragment>,
-    linebreaks: BTreeMap<usize, usize>,
     insertions: IndexedString,
     original: IndexedString,
 }
@@ -62,17 +60,14 @@ impl Document {
         Document {
             fragments: Document::create_fragment_map(&original),
             insertions: IndexedString::new(),
-            linebreaks: BTreeMap::new(),
             original,
         }
     }
 
-    #[allow(dead_code)]
     pub fn new() -> Self {
         return Document::from("");
     }
 
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         let (last_offset, last_fragment) = self
             .fragments
@@ -84,7 +79,6 @@ impl Document {
         return last_offset + last_fragment.byte_length;
     }
 
-    #[allow(dead_code)]
     pub fn insert(&mut self, byte_offset: usize, text: &str) {
         let frag = self.create_insertion_fragment(text);
         let changes = self.get_changes_for_insertion(byte_offset, frag);
@@ -103,7 +97,6 @@ impl Document {
     }
 
     // Find all fragments representing the given byte range.
-    #[allow(dead_code)]
     fn find_affected_fragments(&self, start_byte: &usize) -> Vec<Selector> {
         let (start_offset, _) = self
             .fragments
@@ -360,7 +353,6 @@ impl Document {
         return Some(());
     }
 
-    #[allow(dead_code)]
     pub fn delete(&mut self, range: &Range<usize>) {
         let changes = self.get_changes_for_deletion(&range);
 

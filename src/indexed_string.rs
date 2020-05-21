@@ -7,8 +7,6 @@ pub struct IndexedString {
     source: String,
 }
 
-#[allow(dead_code)]
-static CARRIAGE_RETURN: u8 = 13; // '\r'
 static LINE_FEED: u8 = 10; // '\n'
 
 impl IndexedString {
@@ -50,7 +48,6 @@ impl IndexedString {
         return text;
     }
 
-    #[allow(dead_code)]
     pub fn append(&mut self, text: &str) {
         let bytes = IndexedString::find_linebreaks(text, self.source.len());
 
