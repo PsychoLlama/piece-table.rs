@@ -1,5 +1,5 @@
 [package]
-name = "motto_core"
+name = "piece_table"
 version = "0.1.0"
 authors = ["Jesse Gibson <JesseTheGibson@gmail.com>"]
 edition = "2018"
